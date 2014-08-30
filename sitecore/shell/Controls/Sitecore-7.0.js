@@ -20,6 +20,70 @@ function scSitecore() {
   this.browser.attachEvent(window, "onblur", function(evt) { if (scForm != null) scForm.onBlur(evt ? evt : window.event) });
 }
 
+
+
+
+scSitecore.prototype.initializeModalDialogs = function () {
+  if (!top.scIsDialogsInitialized) {
+    top.scIsDialogsInitialized = true;
+    
+    var jqueryModalDialogsFrame = top.document.createElement("iframe");
+    jqueryModalDialogsFrame.setAttribute("frameborder", "0");
+    jqueryModalDialogsFrame.setAttribute("allowTransparency", "true");
+    jqueryModalDialogsFrame.setAttribute("id", "jqueryModalDialogsFrame");
+    jqueryModalDialogsFrame.setAttribute("src", "/sitecore/shell/Controls/JqueryModalDialogs.html");
+    jqueryModalDialogsFrame.setAttribute("style", "position: absolute; left: 0; right: 0; top: 0; bottom: 0; width: 100%; height: 100%; z-index: -1; margin: 0; padding: 0; border-width: 0; overflow: hidden");
+    top.document.body.appendChild(jqueryModalDialogsFrame);
+
+    if (!top.scForm) {
+      top.scForm = { getTopModalDialog: window.scForm.getTopModalDialog };
+    }
+  }
+};
+
+scSitecore.prototype.showModalDialog = function (url, dialogArguments, features, request, dialogClosedCallback) {
+
+  var jqueryModalDialogsFrame = top.document.getElementById("jqueryModalDialogsFrame");
+  if (jqueryModalDialogsFrame && jqueryModalDialogsFrame.contentWindow) {
+    jqueryModalDialogsFrame.contentWindow.showModalDialog(url, dialogArguments, features, request, this.modifiedHandling, window, dialogClosedCallback);
+  }
+};
+
+scSitecore.prototype.setDialogDimension = function(width, height) {
+  var jqueryModalDialogsFrame = top.document.getElementById("jqueryModalDialogsFrame");
+  if (jqueryModalDialogsFrame && jqueryModalDialogsFrame.contentWindow) {
+    jqueryModalDialogsFrame.contentWindow.setDialogDimension(width, height);
+  }
+};
+
+scSitecore.prototype.hideCloseButton = function () {
+  top._scDialogs[0].contentIframe.dialog('widget').addClass('no-close');
+};
+
+scSitecore.prototype.showCloseButton = function () {
+  top._scDialogs[0].contentIframe.dialog('widget').removeClass('no-close');
+};
+
+scSitecore.prototype.getTopModalDialog = function () {
+  var jqueryModalDialogsFrame = top.document.getElementById("jqueryModalDialogsFrame");
+  if (jqueryModalDialogsFrame && jqueryModalDialogsFrame.contentWindow && top._scDialogs && top._scDialogs.length > 0) {
+    var dialog = top._scDialogs[0];
+    if (dialog) {
+      var contentFrame = dialog.contentIframe[0];
+      var framesCollection = jqueryModalDialogsFrame.contentWindow.frames;
+      for (var i = 0; i < framesCollection.length; i++) {
+        if (framesCollection[i].frameElement == contentFrame) {
+          return framesCollection[i];
+        }
+      }
+    }
+  }
+
+  return null;
+};
+
+
+
 scSitecore.prototype.onBlur = function() {
   this.browser.closePopups("mainWindowBlur");
 }
@@ -78,6 +142,7 @@ scSitecore.prototype.onLoad = function() {
    });
 
   this.browser.initialize();
+  this.initializeModalDialogs();
 
   if (scForm.Settings && scForm.Settings.SessionTimeout) {
     //Keep alive action should be performed earlier then session expires. That's why - 30 * 1000
@@ -818,7 +883,7 @@ scSitecore.prototype.process = function (request, command, name) {
       if (modified) {
         if (request.dialogResult == "__!!NoDialogResult!!__") {
           this.browser.closePopups("checkModifiedShowModalDialog");
-          this.browser.showModalDialog("/sitecore/shell/default.aspx?xmlcontrol=YesNoCancel&te=" + command.value, new Array(window), "dialogWidth:300px;dialogHeight:136px;help:no;scroll:auto;resizable:yes;status:no;center:yes", request);
+        this.showModalDialog("/sitecore/shell/default.aspx?xmlcontrol=YesNoCancel&te=" + command.value, [window], "dialogWidth:300px;dialogHeight:136px;help:no;scroll:auto;resizable:yes;status:no;center:yes", request);
         }
 
         var r = request.dialogResult;
@@ -862,7 +927,7 @@ scSitecore.prototype.process = function (request, command, name) {
       break;
 
     case "CloseWindow":
-      window.top.close();
+    window.top.dialogClose();
       break;
 
     case "ClosePopups":
@@ -916,7 +981,7 @@ scSitecore.prototype.process = function (request, command, name) {
       break;
 
     case "Error":
-      this.browser.showModalDialog("/sitecore/shell/controls/reload.htm", new Array(command.value), "center:yes;help:no;resizable:yes;scroll:yes;status:no;", request);
+    this.showModalDialog("/sitecore/shell/controls/reload.htm", [command.value], "center:yes;help:no;resizable:yes;scroll:yes;status:no;", request);
       window.top.location.href = window.top.location.href;
       break;
 
@@ -1057,13 +1122,7 @@ scSitecore.prototype.process = function (request, command, name) {
 
     case "SetDialogValue":
       window.returnValue = command.value;
-      if (!this.browser.isIE) {
-        var win = window.top;
-        if (win.opener != null) {
-          win = win.opener.top;
-        }
-        win.returnValue = command.value;
-      }
+    window.top.returnValue = command.value;
       break;
 
     case "SetInnerHtml":
@@ -1160,7 +1219,8 @@ scSitecore.prototype.process = function (request, command, name) {
         this.browser.closePopups("ShowModalWindowCommand");
 
         window.___Message = command.message;
-        this.browser.showModalDialog(command.value, new Array(window), command.features, request);
+      this.showModalDialog(command.value, [window], command.features, request, request.onCloseModalDialogCallback);
+      request.onCloseModalDialogCallback = null;
       }
 
       var r = request.dialogResult;
@@ -1536,7 +1596,7 @@ scRequest.prototype.execute = function() {
 scRequest.prototype.handle = function() {
   if (this.httpRequest != null) {
     if (this.httpRequest.status != "200") {
-      scForm.browser.showModalDialog("/sitecore/shell/controls/error.htm", new Array(this.httpRequest.responseText), "center:yes;help:no;resizable:yes;scroll:yes;status:no;");
+      scForm.showModalDialog("/sitecore/shell/controls/error.htm", [this.httpRequest.responseText], "center:yes;help:no;resizable:yes;scroll:yes;status:no;dialogWidth:506;dialogHeight:150");
       return false;
     }
 
@@ -1612,7 +1672,31 @@ scRequest.prototype.resume = function () {
   this.suspend = false;
 
   while (this.currentCommand < this.commands.length) {
+    if (!window.scForm) {
+      return;
+    }
+    
+    // It is not allowed to perform a SetLocation command before the ShowModalDialog one since Sitecore 7.1. So, here is a tricky fix for such kind of rare situations:
+    // If a "SetLocation" command is placed before the "ShowModalDialog" one, then "SetLocation" command will not performed immediatly
+    // It will be performed after closing the modal dialog.
+    if (this.commands[this.currentCommand].command == "SetLocation") {
+      for (var i = this.currentCommand; i < this.commands.length; i++) {
+        var command = this.commands[i];
+        if (command.command == "ShowModalDialog") {
+          var newLocation = this.commands[this.currentCommand].value;
+          this.onCloseModalDialogCallback = function() {
+            try {
+              if (newLocation) { location.href = newLocation; }
+              else { location.reload(true); }
+            } catch(e) {}
+          };
+        }
+      }
+    }
+
+    if (!(this.commands[this.currentCommand].command == "SetLocation" && this.onCloseModalDialogCallback)) {
     scForm.process(this, this.commands[this.currentCommand]);
+    }
 
     this.dialogResult = "__!!NoDialogResult!!__";
 
@@ -1624,6 +1708,10 @@ scRequest.prototype.resume = function () {
   }
 
   var canClose = true;
+
+  if (!window.scForm) {
+    return;
+  }
 
   if (this.source != "") {
     var ctl = $(this.source);
@@ -1643,12 +1731,7 @@ scRequest.prototype.resume = function () {
 
   if (ctl != null && ctl.ancestors) {
       var ancestors = ctl.ancestors();
-      var popupTree = null;
-      try {
-        popupTree = ancestors.find(function (e) { return e.hasClassName("scPopupTree"); });
-      } catch(ex) { }
-    
-      if (popupTree != null) {
+      if (ancestors.find(function (e) { return e.hasClassName("scPopupTree"); }) != null) {
         canClose = ancestors.find(function (e) { return e.hasClassName("scTreeItem"); }) != null;
       }
     }
@@ -1695,7 +1778,7 @@ scRequest.prototype.send = function() {
 
     this.httpRequest.open("POST", url, this.async);
 
-    this.httpRequest.setRequestHeader("lastCached", new Date().toUTCString());
+    this.httpRequest.setRequestHeader("lastCached", new Date().toString());
     this.httpRequest.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
 
     if (this.async) {
