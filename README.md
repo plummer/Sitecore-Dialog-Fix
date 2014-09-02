@@ -13,3 +13,5 @@ I've tested in: Internet Explorer 11, Firefox 31 and Google Chrome 36 + 37.
 In following version of Sitecore: 6.5 rev 121009 (SP2), 6.6 rev 140410 (SP2), 7.0 rev 140408 (SP1).
 
 These have all been vanilla installs, and have not seen the light of day of a QA server let alone a production server. Usual disclaimer, use at your own risk. This is highly experimental and not in any way officially endorsed by Sitecore.
+
+More info in my blog post: http://wp.me/p2SmN4-2z
