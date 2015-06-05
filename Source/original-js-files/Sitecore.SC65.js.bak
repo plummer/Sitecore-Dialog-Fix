@@ -134,7 +134,7 @@ scSitecore.prototype.broadcast = function(win, request, command) {
         return true;
       }
     } catch (ex) {
-      console.log("Failed to accees frame. This typically happens due to a Permission Denied exception in IE9 caused by an intricate issue with Popup and ShowModalDialog calls. " + ex.message);
+      console.log("Failed to access frame. This typically happens due to a Permission Denied exception in IE9 caused by an intricate issue with Popup and ShowModalDialog calls. " + ex.message);
     }
   }
 
